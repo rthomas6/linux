@@ -98,6 +98,21 @@ void spi_statistics_add_transfer_stats(struct spi_statistics *stats,
 	SPI_STATISTICS_ADD_TO_FIELD(stats, field, 1)
 
 /**
+ * struct spi_delay - SPI delay information
+ * @value: Value for the delay
+ * @unit: Unit for the delay
+ */
+struct spi_delay {
+#define SPI_DELAY_UNIT_USECS	0
+#define SPI_DELAY_UNIT_NSECS	1
+#define SPI_DELAY_UNIT_SCK	2
+	u16	value;
+	u8	unit;
+};
+
+extern int spi_delay_exec(struct spi_delay *_delay, struct spi_transfer *xfer);
+
+/**
  * struct spi_device - Controller side proxy for an SPI slave device
  * @dev: Driver model representation of the device.
  * @controller: SPI controller used with the device.
@@ -833,12 +848,14 @@ struct spi_transfer {
 #define	SPI_NBITS_QUAD		0x04 /* 4bits transfer */
 	u8		bits_per_word;
 	u16		delay_usecs;
-	u16		cs_change_delay;
-	u8		cs_change_delay_unit;
-#define SPI_DELAY_UNIT_USECS	0
-#define SPI_DELAY_UNIT_NSECS	1
+	struct spi_delay	delay;
+	struct spi_delay	cs_change_delay;
+	struct spi_delay	word_delay;
 	u32		speed_hz;
 	u32		dummy;
+
+	u32		effective_speed_hz;
+
 	struct list_head transfer_list;
 };
 
@@ -930,6 +947,20 @@ static inline void
 spi_transfer_del(struct spi_transfer *t)
 {
 	list_del(&t->transfer_list);
+}
+
+static inline int
+spi_transfer_delay(struct spi_transfer *t)
+{
+	struct spi_delay d;
+
+	if (t->delay_usecs) {
+		d.value = t->delay_usecs;
+		d.unit = SPI_DELAY_UNIT_USECS;
+		return spi_delay_exec(&d, NULL);
+	}
+
+	return spi_delay_exec(&t->delay, t);
 }
 
 /**
